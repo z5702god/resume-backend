@@ -123,12 +123,18 @@ app.post('/api/create-order', async (req, res) => {
         const orderData = pendingResults.get(orderId);
         const TimeStamp = Math.round(new Date().getTime() / 1000);
 
+        // Ensure Email is valid format
+        let email = orderData.userId;
+        if (!email || !email.includes('@')) {
+            email = 'test@example.com'; // Fallback to valid email for Newebpay validation
+        }
+
         const order = {
             TimeStamp,
             MerchantOrderNo: orderId,
             Amt: 100,
             ItemDesc: '履歷透視鏡分析服務',
-            Email: orderData.userId || 'test@example.com'
+            Email: email
         };
 
         const tradeInfoString = genDataChain(order);
