@@ -6,7 +6,7 @@ const FormData = require('form-data');
 const crypto = require('crypto');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Configuration from Environment Variables
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://majestic-cactus-655cc9.netlify.app';
