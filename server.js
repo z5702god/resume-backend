@@ -33,11 +33,35 @@ console.log('NotifyUrl:', NotifyUrl);
 console.log('ReturnUrl:', ReturnUrl);
 console.log('==============================');
 
-// Enable CORS
+// Enable CORS with comprehensive configuration
 app.use(cors({
-    origin: [FRONTEND_URL, 'http://localhost:5500', 'http://127.0.0.1:5500'],
-    credentials: true
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        const allowedOrigins = [
+            FRONTEND_URL,
+            'http://localhost:5500',
+            'http://127.0.0.1:5500',
+            'https://majestic-cactus-655cc9.netlify.app' // Explicitly add Netlify URL
+        ];
+
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('netlify.app')) {
+            callback(null, true);
+        } else {
+            console.log('CORS blocked origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Length', 'X-Requested-With'],
+    maxAge: 86400 // 24 hours
 }));
+
+// Explicitly handle OPTIONS preflight requests
+app.options('*', cors());
 
 // Parse JSON bodies
 app.use(express.json());
