@@ -123,10 +123,12 @@ app.post('/api/create-order', async (req, res) => {
         const orderData = pendingResults.get(orderId);
         const TimeStamp = Math.round(new Date().getTime() / 1000);
 
-        // Ensure Email is valid format
-        let email = orderData.userId;
-        if (!email || !email.includes('@')) {
-            email = 'test@example.com'; // Fallback to valid email for Newebpay validation
+        // Validate email format - Newebpay requires valid email
+        let email = orderData.userId || 'test@example.com';
+        // Simple email validation - check if contains @ and .
+        if (!email.includes('@') || !email.includes('.')) {
+            console.log(`Invalid email format: ${email}, using default`);
+            email = 'test@example.com';
         }
 
         const order = {
