@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const app = express();
 const port = 3000;
 
-// Configuration from Environment Variables (matching provided example)
+// Configuration from Environment Variables
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://majestic-cactus-655cc9.netlify.app';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 
@@ -33,35 +33,8 @@ console.log('NotifyUrl:', NotifyUrl);
 console.log('ReturnUrl:', ReturnUrl);
 console.log('==============================');
 
-// Enable CORS with comprehensive configuration
-app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-
-        const allowedOrigins = [
-            FRONTEND_URL,
-            'http://localhost:5500',
-            'http://127.0.0.1:5500',
-            'https://majestic-cactus-655cc9.netlify.app' // Explicitly add Netlify URL
-        ];
-
-        if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('netlify.app')) {
-            callback(null, true);
-        } else {
-            console.log('CORS blocked origin:', origin);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Content-Length', 'X-Requested-With'],
-    maxAge: 86400 // 24 hours
-}));
-
-// Explicitly handle OPTIONS preflight requests
-app.options('*', cors());
+// Enable CORS - Permissive for testing
+app.use(cors());
 
 // Parse JSON bodies
 app.use(express.json());
@@ -74,34 +47,24 @@ const upload = multer({ storage: multer.memoryStorage() });
 const pendingResults = new Map();
 const paidResults = new Map();
 
-// --- Helper Functions from Example ---
+// --- Helper Functions ---
 
-// 字串組合
 function genDataChain(order) {
-    return `MerchantID=${MerchantID}&TimeStamp=${order.TimeStamp
-        }&Version=${Version}&RespondType=${RespondType}&MerchantOrderNo=${order.MerchantOrderNo
-        }&Amt=${order.Amt}&NotifyURL=${encodeURIComponent(
-            NotifyUrl
-        )}&ReturnURL=${encodeURIComponent(ReturnUrl)}&ItemDesc=${encodeURIComponent(
-            order.ItemDesc
-        )}&Email=${encodeURIComponent(order.Email)}`;
+    return `MerchantID=${MerchantID}&TimeStamp=${order.TimeStamp}&Version=${Version}&RespondType=${RespondType}&MerchantOrderNo=${order.MerchantOrderNo}&Amt=${order.Amt}&NotifyURL=${encodeURIComponent(NotifyUrl)}&ReturnURL=${encodeURIComponent(ReturnUrl)}&ItemDesc=${encodeURIComponent(order.ItemDesc)}&Email=${encodeURIComponent(order.Email)}`;
 }
 
-// AES 加密
 function createSesEncrypt(TradeInfo) {
     const encrypt = crypto.createCipheriv('aes-256-cbc', HASHKEY, HASHIV);
     const enc = encrypt.update(genDataChain(TradeInfo), 'utf8', 'hex');
     return enc + encrypt.final('hex');
 }
 
-// SHA256 加密
 function createShaEncrypt(aesEncrypt) {
     const sha = crypto.createHash('sha256');
     const plainText = `HashKey=${HASHKEY}&${aesEncrypt}&HashIV=${HASHIV}`;
     return sha.update(plainText).digest('hex').toUpperCase();
 }
 
-// AES 解密
 function createSesDecrypt(TradeInfo) {
     const decrypt = crypto.createDecipheriv('aes-256-cbc', HASHKEY, HASHIV);
     decrypt.setAutoPadding(false);
@@ -111,9 +74,8 @@ function createSesDecrypt(TradeInfo) {
     return JSON.parse(result);
 }
 
-// --- End Helper Functions ---
+// --- API Endpoints ---
 
-// Proxy Endpoint
 app.post('/api/analyze', upload.single('resume'), async (req, res) => {
     console.log('Received analysis request');
     try {
@@ -153,7 +115,6 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
     }
 });
 
-// Create Payment Order
 app.post('/api/create-order', async (req, res) => {
     try {
         const { orderId } = req.body;
@@ -170,7 +131,6 @@ app.post('/api/create-order', async (req, res) => {
             Email: orderData.userId || 'test@example.com'
         };
 
-        // Debug: Log order data before encryption
         const tradeInfoString = genDataChain(order);
         console.log('=== Creating Payment Order ===');
         console.log('Order ID:', orderId);
@@ -179,8 +139,6 @@ app.post('/api/create-order', async (req, res) => {
 
         const aesEncrypt = createSesEncrypt(order);
         const shaEncrypt = createShaEncrypt(aesEncrypt);
-
-        console.log(`Payment order created: ${orderId}`);
 
         res.json({
             success: true,
@@ -198,7 +156,6 @@ app.post('/api/create-order', async (req, res) => {
     }
 });
 
-// Payment Callback (Notify)
 app.post('/api/payment-callback', (req, res) => {
     try {
         console.log('Payment callback received:', req.body);
@@ -228,7 +185,6 @@ app.post('/api/payment-callback', (req, res) => {
     }
 });
 
-// Payment Return (Redirect)
 app.post('/api/payment-return', (req, res) => {
     try {
         console.log('Payment return received:', req.body);
@@ -258,7 +214,6 @@ app.post('/api/payment-return', (req, res) => {
     }
 });
 
-// Get Result
 app.get('/api/get-result/:orderId', (req, res) => {
     const { orderId } = req.params;
     if (paidResults.has(orderId)) {
