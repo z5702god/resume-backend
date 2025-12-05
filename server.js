@@ -102,13 +102,32 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         if (!response.ok) return res.status(response.status).send(responseText);
 
         const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Extract preview (first 3 lines) for display before payment
+        let preview = '';
+        try {
+            const parsedResponse = JSON.parse(responseText);
+            const reviewText = parsedResponse[0]?.overallReview || parsedResponse[0]?.['Overall Review'] || '';
+            const lines = reviewText.split('\n').filter(line => line.trim() !== '');
+            preview = lines.slice(0, 3).join('\n');
+        } catch (e) {
+            // If parsing fails, extract from raw text
+            const lines = responseText.split('\n').filter(line => line.trim() !== '');
+            preview = lines.slice(0, 3).join('\n');
+        }
+
         pendingResults.set(orderId, {
             result: responseText,
             userId: req.body.userId,
             timestamp: new Date()
         });
 
-        res.json({ success: true, orderId: orderId, message: 'Analysis complete. Please proceed to payment.' });
+        res.json({
+            success: true,
+            orderId: orderId,
+            preview: preview,
+            message: 'Analysis complete. Please proceed to payment.'
+        });
     } catch (error) {
         console.error('Proxy error:', error);
         res.status(500).json({ error: error.message });
