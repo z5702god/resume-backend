@@ -120,7 +120,12 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
                     !lowerLine.includes('/10');
             });
 
-            preview = filteredLines.slice(0, 3).join('\n');
+            // Take only first 2 lines and limit to 200 characters
+            let previewText = filteredLines.slice(0, 2).join('\n');
+            if (previewText.length > 200) {
+                previewText = previewText.substring(0, 200) + '...';
+            }
+            preview = previewText;
         } catch (e) {
             // If parsing fails, extract from raw text
             const allLines = responseText.split('\n').filter(line => line.trim() !== '');
@@ -132,7 +137,12 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
                     !lowerLine.includes('score') &&
                     !lowerLine.includes('/10');
             });
-            preview = filteredLines.slice(0, 3).join('\n');
+            // Take only first 2 lines and limit to 200 characters
+            let previewText = filteredLines.slice(0, 2).join('\n');
+            if (previewText.length > 200) {
+                previewText = previewText.substring(0, 200) + '...';
+            }
+            preview = previewText;
         }
 
         pendingResults.set(orderId, {
