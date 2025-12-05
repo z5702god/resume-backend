@@ -108,12 +108,31 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         try {
             const parsedResponse = JSON.parse(responseText);
             const reviewText = parsedResponse[0]?.overallReview || parsedResponse[0]?.['Overall Review'] || '';
-            const lines = reviewText.split('\n').filter(line => line.trim() !== '');
-            preview = lines.slice(0, 3).join('\n');
+            const allLines = reviewText.split('\n').filter(line => line.trim() !== '');
+
+            // Filter out lines containing score information
+            const filteredLines = allLines.filter(line => {
+                const lowerLine = line.toLowerCase();
+                return !lowerLine.includes('分數') &&
+                    !lowerLine.includes('總評') &&
+                    !lowerLine.includes('評分') &&
+                    !lowerLine.includes('score') &&
+                    !lowerLine.includes('/10');
+            });
+
+            preview = filteredLines.slice(0, 3).join('\n');
         } catch (e) {
             // If parsing fails, extract from raw text
-            const lines = responseText.split('\n').filter(line => line.trim() !== '');
-            preview = lines.slice(0, 3).join('\n');
+            const allLines = responseText.split('\n').filter(line => line.trim() !== '');
+            const filteredLines = allLines.filter(line => {
+                const lowerLine = line.toLowerCase();
+                return !lowerLine.includes('分數') &&
+                    !lowerLine.includes('總評') &&
+                    !lowerLine.includes('評分') &&
+                    !lowerLine.includes('score') &&
+                    !lowerLine.includes('/10');
+            });
+            preview = filteredLines.slice(0, 3).join('\n');
         }
 
         pendingResults.set(orderId, {
