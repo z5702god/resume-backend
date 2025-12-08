@@ -24,12 +24,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Newebpay Configuration (Uses environment variables in production, fallback to test values for local dev)
 const NEWEBPAY_CONFIG = {
-    merchantID: process.env.NEWEBPAY_MERCHANT_ID || 'MS152693474',
-    hashKey: process.env.NEWEBPAY_HASH_KEY || 'jKNxcpnMtZx2ygaBYKeaWdT0w4Usl9HZ',
-    hashIV: process.env.NEWEBPAY_HASH_IV || 'CAAevAsTggx5zG6P',
-    paymentURL: process.env.NEWEBPAY_PAYMENT_URL || 'https://ccore.newebpay.com/MPG/mpg_gateway',
-    returnURL: process.env.BASE_URL ? `${process.env.BASE_URL}/api/payment-return` : 'http://localhost:3000/api/payment-return',
-    notifyURL: process.env.BASE_URL ? `${process.env.BASE_URL}/api/payment-callback` : 'http://localhost:3000/api/payment-callback',
+    merchantID: process.env.MerchantID || 'MS152693474',
+    hashKey: process.env.HASHKEY || 'jKNxcpnMtZx2ygaBYKeaWdT0w4Usl9HZ',
+    hashIV: process.env.HASHIV || 'CAAevAsTggx5zG6P',
+    paymentURL: process.env.PayGateWay || 'https://ccore.newebpay.com/MPG/mpg_gateway',
+    returnURL: process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/api/payment-return` : 'http://localhost:3000/api/payment-return',
+    notifyURL: process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/api/payment-callback` : 'http://localhost:3000/api/payment-callback',
     version: '2.0'
 };
 
