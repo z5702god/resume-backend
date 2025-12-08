@@ -7,7 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Enable CORS
 app.use(cors());
@@ -22,14 +22,14 @@ app.use(express.static(__dirname));
 // Configure Multer for file upload (keep in memory to forward)
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Newebpay Configuration (Test Environment)
+// Newebpay Configuration (Uses environment variables in production, fallback to test values for local dev)
 const NEWEBPAY_CONFIG = {
-    merchantID: 'MS152693474', // 藍新測試商店代號
-    hashKey: 'jKNxcpnMtZx2ygaBYKeaWdT0w4Usl9HZ',
-    hashIV: 'CAAevAsTggx5zG6P',
-    paymentURL: 'https://ccore.newebpay.com/MPG/mpg_gateway', // 測試環境
-    returnURL: 'http://localhost:3000/api/payment-return',
-    notifyURL: 'http://localhost:3000/api/payment-callback',
+    merchantID: process.env.NEWEBPAY_MERCHANT_ID || 'MS152693474',
+    hashKey: process.env.NEWEBPAY_HASH_KEY || 'jKNxcpnMtZx2ygaBYKeaWdT0w4Usl9HZ',
+    hashIV: process.env.NEWEBPAY_HASH_IV || 'CAAevAsTggx5zG6P',
+    paymentURL: process.env.NEWEBPAY_PAYMENT_URL || 'https://ccore.newebpay.com/MPG/mpg_gateway',
+    returnURL: process.env.BASE_URL ? `${process.env.BASE_URL}/api/payment-return` : 'http://localhost:3000/api/payment-return',
+    notifyURL: process.env.BASE_URL ? `${process.env.BASE_URL}/api/payment-callback` : 'http://localhost:3000/api/payment-callback',
     version: '2.0'
 };
 
