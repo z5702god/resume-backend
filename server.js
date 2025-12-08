@@ -115,10 +115,29 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
 
         console.log(`Analysis complete. Order ID: ${orderId}`);
 
-        // Return order ID instead of results
+        // Extract preview from analysis result (first few lines)
+        let preview = '';
+        try {
+            const analysisData = JSON.parse(responseText);
+            if (Array.isArray(analysisData) && analysisData.length > 0) {
+                const overallReview = analysisData[0].overallReview || analysisData[0]['Overall Review'] || '';
+                // Get first 3 lines or 200 characters as preview
+                const lines = overallReview.split('\n').filter(line => line.trim() !== '');
+                preview = lines.slice(0, 3).join('\n');
+                if (preview.length > 200) {
+                    preview = preview.substring(0, 200) + '...';
+                }
+            }
+        } catch (e) {
+            console.log('Could not parse preview:', e);
+            preview = responseText.substring(0, 200) + '...';
+        }
+
+        // Return order ID with preview
         res.json({
             success: true,
             orderId: orderId,
+            preview: preview,
             message: 'Analysis complete. Please proceed to payment.'
         });
 
