@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>履歷透視鏡 - AI 履歷分析服務</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <main class="container">
+        <!-- Landing Page Section -->
+        <section id="landingPage" class="landing-page">
+            <header class="header">
+                <h1>履歷透視鏡</h1>
+                <p>AI 驅動的職位匹配度分析服務</p>
+            </header>
+
+            <!-- Service Introduction -->
+            <div class="glass-card service-intro">
+                <h2>📋 服務說明</h2>
+                <p class="service-description">
+                    使用先進的 AI 科技進行工作職位深度分析，為您的履歷與目標職位進行全方位比對。
+                    我們的系統會分析您的履歷內容，並提供：
+                </p>
+                <ul class="feature-list">
+                    <li>✨ 職位匹配度評分（1-10 分）</li>
+                    <li>📊 分析你的優勢和待加強的地方</li>
+                    <li>💡 履歷改善建議與優化方向</li>
+                    <li>🎯 告訴你該補強哪些能力</li>
+                </ul>
+            </div>
+
+            <!-- Pricing -->
+            <div class="glass-card pricing">
+                <h2>💰 服務價格</h2>
+                <div class="price-display">
+                    <span class="price-amount">NT$ 100</span>
+                    <span class="price-unit">/ 每次分析</span>
+                </div>
+                <p class="price-note">✓ 一次性付費，完整報告立即取得</p>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="glass-card contact-info">
+                <h2>📞 客服資訊</h2>
+                <div class="contact-items">
+                    <div class="contact-item">
+                        <span class="contact-label">📧 電子信箱：</span>
+                        <a href="mailto:z5702god@gmail.com" class="contact-value">z5702god@gmail.com</a>
+                    </div>
+                    <div class="contact-item">
+                        <span class="contact-label">☎️ 聯絡電話：</span>
+                        <span class="contact-value">0933-282-676</span>
+                    </div>
+                </div>
+                <p class="service-hours">服務時間：週一至週五 09:00-18:00</p>
+            </div>
+
+            <!-- Refund Policy -->
+            <div class="glass-card refund-policy">
+                <h2>🔄 退換貨政策</h2>
+                <div class="policy-content">
+                    <p><strong>數位商品說明：</strong></p>
+                    <ul class="policy-list">
+                        <li>本服務為數位內容商品，一經提供分析報告後，依消費者保護法第19條第2項規定，無法享有7天鑑賞期</li>
+                        <li>若因系統錯誤導致無法提供服務，將全額退款</li>
+                        <li>付款完成後若未收到分析結果，請聯繫客服處理</li>
+                    </ul>
+                    <p class="policy-note">如有任何問題，歡迎透過上述客服資訊聯繫我們</p>
+                </div>
+            </div>
+
+            <!-- CTA Button -->
+            <button id="startAnalysisBtn" class="cta-btn">
+                <span class="btn-text">立即開始分析</span>
+                <span class="btn-icon">→</span>
+            </button>
+        </section>
+
+        <!-- Analysis Form Section (Hidden by default) -->
+        <section id="analysisPage" class="analysis-page hidden">
+            <header class="header">
+                <h1>履歷透視鏡</h1>
+                <p>上傳履歷及職位資訊,立即獲得完整匹配度分析</p>
+            </header>
+
+            <section class="glass-card form-section">
+                <form id="analysisForm">
+                    <div class="form-group">
+                        <label for="userId">使用者電子郵件</label>
+                        <input type="email" id="userId" name="userId" placeholder="例如：user@example.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="jobResponsibilities">職位職責</label>
+                        <textarea id="jobResponsibilities" name="jobResponsibilities" placeholder="請在此貼上職位職責內容..."
+                            rows="4" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="jobRequirements">職位要求</label>
+                        <textarea id="jobRequirements" name="jobRequirements" placeholder="請在此貼上職位要求內容..." rows="4"
+                            required></textarea>
+                    </div>
+
+                    <div class="form-group file-upload">
+                        <label for="resume">履歷表 (PDF)</label>
+                        <div class="file-drop-area" id="dropArea">
+                            <span class="file-msg">拖放或點擊上傳PDF</span>
+                            <input type="file" id="resume" name="resume" accept=".pdf" required>
+                        </div>
+                        <div id="fileName" class="file-name"></div>
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="submit-btn">
+                        <span class="btn-text">分析履歷</span>
+                        <div class="loader"></div>
+                    </button>
+                    <p class="analysis-note">* 進行深度分析將會耗時30秒</p>
+                </form>
+
+                <!-- Back Button -->
+                <button id="backBtn" class="secondary-btn back-btn">
+                    <span>← 返回</span>
+                </button>
+            </section>
+
+            <!-- Result Section (Preview) - NOW FIRST -->
+            <section id="resultSection" class="glass-card result-section hidden">
+                <h2>分析結果</h2>
+
+                <div class="result-grid">
+                    <div class="score-card">
+                        <h3>匹配分數</h3>
+                        <div class="score-display">
+                            <span id="scoreValue">0</span>
+                            <span class="score-total">/ 10</span>
+                        </div>
+                    </div>
+
+                    <div class="review-card">
+                        <h3>整體評估</h3>
+                        <div id="reviewContent" class="markdown-body">
+                            <!-- AI Review will be injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <button id="resetBtn" class="secondary-btn">分析下一份</button>
+            </section>
+
+            <!-- Payment Section - NOW SECOND -->
+            <section id="paymentSection" class="glass-card payment-section hidden">
+                <h2>付款資訊</h2>
+                <div class="payment-info">
+                    <div class="info-row">
+                        <span class="label">服務項目：</span>
+                        <span class="value">履歷透視鏡分析服務</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">訂單編號：</span>
+                        <span class="value" id="orderIdDisplay">-</span>
+                    </div>
+
+                    <!-- Discount Code Input -->
+                    <div class="form-group discount-code-group">
+                        <label for="discountCode">折扣碼（選填）</label>
+                        <div class="discount-input-wrapper">
+                            <input type="text" id="discountCode" name="discountCode" placeholder="輸入折扣碼" maxlength="20">
+                            <button type="button" id="applyDiscountBtn" class="apply-discount-btn">套用</button>
+                        </div>
+                        <span class="discount-message" id="discountMessage"></span>
+                    </div>
+
+                    <!-- Price Breakdown -->
+                    <div class="price-breakdown">
+                        <div class="info-row">
+                            <span class="label">原價：</span>
+                            <span class="value" id="originalPrice">NT$ 100</span>
+                        </div>
+                        <div class="info-row discount-row hidden" id="discountRow">
+                            <span class="label">折扣：</span>
+                            <span class="value discount-value" id="discountAmount">- NT$ 0</span>
+                        </div>
+                        <div class="info-row payment-amount">
+                            <span class="label">付款金額：</span>
+                            <span class="value" id="finalAmount">NT$ 100</span>
+                        </div>
+                    </div>
+                </div>
+                <button id="paymentBtn" class="submit-btn">
+                    <span class="btn-text">前往付款</span>
+                </button>
+                <p class="payment-note">* 付款完成後將自動顯示分析結果</p>
+            </section>
+
+            <!-- Hidden Newebpay Payment Form -->
+            <form id="newebpayForm" method="post" style="display: none;">
+                <input type="text" name="MerchantID" id="MerchantID">
+                <input type="text" name="TradeInfo" id="TradeInfo">
+                <input type="text" name="TradeSha" id="TradeSha">
+                <input type="text" name="Version" id="Version">
+            </form>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>付款處理中...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 2rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h1>付款處理中</h1>
+        <p>正在確認付款結果，請稍候...</p>
+    </div>
+
+    <script>
+        // This page handles the return from Newebpay
+        // Extract orderId from URL and redirect to main page with the orderId
+
+        window.addEventListener('DOMContentLoaded', () => {
+            // Parse the response from Newebpay
+            const urlParams = new URLSearchParams(window.location.search);
+
+            // Try to get order ID from different possible sources
+            let orderId = null;
+
+            // Method 1: Check if it's in query params directly
+            orderId = urlParams.get('MerchantOrderNo') || urlParams.get('orderId');
+
+            // Method 2: If Newebpay sends TradeInfo in POST, we need to handle it
+            // For now, we'll redirect to home and let the server handle the callback
+
+            if (orderId) {
+                // Redirect to main page with orderId
+                window.location.href = `/?orderId=${orderId}`;
+            } else {
+                // If no orderId found, try to extract from form data or wait for callback
+                setTimeout(() => {
+                    // After a brief delay, redirect to home page
+                    // The server callback should have processed the payment by now
+                    window.location.href = '/';
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+
+</html>
