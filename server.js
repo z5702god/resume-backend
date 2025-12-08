@@ -254,18 +254,21 @@ app.post('/api/payment-return', (req, res) => {
             }
         }
 
-        // Redirect to main page with orderId
+        // Get frontend URL from environment variable
+        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+        // Redirect to frontend with orderId
         res.send(`
             <!DOCTYPE html>
             <html>
             <head>
                 <title>Payment Processing</title>
-                <meta http-equiv="refresh" content="0;url=/?orderId=${orderId}">
+                <meta http-equiv="refresh" content="0;url=${frontendURL}/?orderId=${orderId}">
             </head>
             <body>
                 <p>Processing payment... Redirecting...</p>
                 <script>
-                    window.location.href = '/?orderId=${orderId}';
+                    window.location.href = '${frontendURL}/?orderId=${orderId}';
                 </script>
             </body>
             </html>
@@ -273,6 +276,7 @@ app.post('/api/payment-return', (req, res) => {
 
     } catch (error) {
         console.error('Payment return error:', error);
+        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
         res.send(`
             <!DOCTYPE html>
             <html>
@@ -280,7 +284,7 @@ app.post('/api/payment-return', (req, res) => {
                 <title>Payment Error</title>
             </head>
             <body>
-                <p>Payment processing error. <a href="/">Return to homepage</a></p>
+                <p>Payment processing error. <a href="${frontendURL}">Return to homepage</a></p>
             </body>
             </html>
         `);
