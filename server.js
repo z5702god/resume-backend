@@ -3,79 +3,83 @@ const multer = require('multer');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
-const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Enable CORS
+// Configuration from Environment Variables
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://majestic-cactus-655cc9.netlify.app';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+
+const MerchantID = process.env.MerchantID || process.env.NEWEBPAY_MERCHANT_ID || 'MS157481566';
+const HASHKEY = process.env.HASHKEY || process.env.NEWEBPAY_HASH_KEY || 'jKNxcpnMtZx2ygaBYKeaWdT0w4Usl9HZ';
+const HASHIV = process.env.HASHIV || process.env.NEWEBPAY_HASH_IV || 'CAAevAsTggx5zG6P';
+const Version = process.env.Version || '2.0';
+const PayGateWay = process.env.PayGateWay || process.env.NEWEBPAY_URL || 'https://ccore.newebpay.com/MPG/mpg_gateway';
+const NotifyUrl = process.env.NotifyUrl || `${BACKEND_URL}/api/payment-callback`;
+const ReturnUrl = process.env.ReturnUrl || `${BACKEND_URL}/api/payment-return`;
+const RespondType = 'JSON';
+
+// Debug: Log configuration on startup
+console.log('=== Newebpay Configuration ===');
+console.log('MerchantID:', MerchantID);
+console.log('HASHKEY:', HASHKEY ? `${HASHKEY.substring(0, 10)}...` : 'NOT SET');
+console.log('HASHIV:', HASHIV ? `${HASHIV.substring(0, 10)}...` : 'NOT SET');
+console.log('PayGateWay:', PayGateWay);
+console.log('BACKEND_URL:', BACKEND_URL);
+console.log('FRONTEND_URL:', FRONTEND_URL);
+console.log('NotifyUrl:', NotifyUrl);
+console.log('ReturnUrl:', ReturnUrl);
+console.log('==============================');
+
+// Enable CORS - Permissive for testing
 app.use(cors());
 
 // Parse JSON bodies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from current directory
-app.use(express.static(__dirname));
-
-// Configure Multer for file upload (keep in memory to forward)
+// Configure Multer for file upload
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Newebpay Configuration (Uses environment variables in production, fallback to test values for local dev)
-const NEWEBPAY_CONFIG = {
-    merchantID: process.env.MerchantID || 'MS152693474',
-    hashKey: process.env.HASHKEY || 'jKNxcpnMtZx2ygaBYKeaWdT0w4Usl9HZ',
-    hashIV: process.env.HASHIV || 'CAAevAsTggx5zG6P',
-    paymentURL: process.env.PayGateWay || 'https://ccore.newebpay.com/MPG/mpg_gateway',
-    returnURL: process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/api/payment-return` : 'http://localhost:3000/api/payment-return',
-    notifyURL: process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/api/payment-callback` : 'http://localhost:3000/api/payment-callback',
-    version: '2.0'
-};
-
-// In-memory storage for pending analysis results
+// In-memory storage
 const pendingResults = new Map();
 const paidResults = new Map();
 
-// Helper: AES Encrypt for Newebpay
-function aesEncrypt(data, key, iv) {
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(data, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return encrypted;
+// --- Helper Functions ---
+
+function genDataChain(order) {
+    return `MerchantID=${MerchantID}&TimeStamp=${order.TimeStamp}&Version=${Version}&RespondType=${RespondType}&MerchantOrderNo=${order.MerchantOrderNo}&Amt=${order.Amt}&NotifyURL=${encodeURIComponent(NotifyUrl)}&ReturnURL=${encodeURIComponent(ReturnUrl)}&ItemDesc=${encodeURIComponent(order.ItemDesc)}&Email=${encodeURIComponent(order.Email)}`;
 }
 
-// Helper: AES Decrypt for Newebpay
-function aesDecrypt(encryptedData, key, iv) {
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+function createSesEncrypt(TradeInfo) {
+    const encrypt = crypto.createCipheriv('aes-256-cbc', HASHKEY, HASHIV);
+    const enc = encrypt.update(genDataChain(TradeInfo), 'utf8', 'hex');
+    return enc + encrypt.final('hex');
 }
 
-// Helper: Create TradeInfo for Newebpay
-function createTradeInfo(orderData) {
-    const tradeInfoString = Object.keys(orderData)
-        .map(key => `${key}=${orderData[key]}`)
-        .join('&');
-
-    return aesEncrypt(tradeInfoString, NEWEBPAY_CONFIG.hashKey, NEWEBPAY_CONFIG.hashIV);
+function createShaEncrypt(aesEncrypt) {
+    const sha = crypto.createHash('sha256');
+    const plainText = `HashKey=${HASHKEY}&${aesEncrypt}&HashIV=${HASHIV}`;
+    return sha.update(plainText).digest('hex').toUpperCase();
 }
 
-// Helper: Create TradeSha for Newebpay
-function createTradeSha(tradeInfo) {
-    const hashString = `HashKey=${NEWEBPAY_CONFIG.hashKey}&${tradeInfo}&HashIV=${NEWEBPAY_CONFIG.hashIV}`;
-    return crypto.createHash('sha256').update(hashString).digest('hex').toUpperCase();
+function createSesDecrypt(TradeInfo) {
+    const decrypt = crypto.createDecipheriv('aes-256-cbc', HASHKEY, HASHIV);
+    decrypt.setAutoPadding(false);
+    const text = decrypt.update(TradeInfo, 'hex', 'utf8');
+    const plainText = text + decrypt.final('utf8');
+    const result = plainText.replace(/[\x00-\x20]+/g, '');
+    return JSON.parse(result);
 }
 
-// Proxy Endpoint - Modified to return orderId instead of results
+// --- API Endpoints ---
+
 app.post('/api/analyze', upload.single('resume'), async (req, res) => {
     console.log('Received analysis request');
-
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'No resume file uploaded' });
-        }
+        if (!req.file) return res.status(400).json({ error: 'No resume file uploaded' });
 
         const formData = new FormData();
         formData.append('userId', req.body.userId);
@@ -87,7 +91,6 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         });
 
         console.log('Forwarding to n8n webhook...');
-
         const webhookUrl = 'https://lukelu.zeabur.app/webhook/Luke';
         const response = await fetch(webhookUrl, {
             method: 'POST',
@@ -95,259 +98,182 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
             headers: formData.getHeaders()
         });
 
-        console.log(`n8n responded with status: ${response.status}`);
         const responseText = await response.text();
-        console.log('n8n response body:', responseText);
+        if (!response.ok) return res.status(response.status).send(responseText);
 
-        if (!response.ok) {
-            return res.status(response.status).send(responseText);
-        }
-
-        // Generate unique order ID
         const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        // Store analysis result temporarily (pending payment)
+        // Extract preview (first 3 lines) for display before payment
+        let preview = '';
+        try {
+            const parsedResponse = JSON.parse(responseText);
+            const reviewText = parsedResponse[0]?.overallReview || parsedResponse[0]?.['Overall Review'] || '';
+            const allLines = reviewText.split('\n').filter(line => line.trim() !== '');
+
+            // Filter out lines containing score information
+            const filteredLines = allLines.filter(line => {
+                const lowerLine = line.toLowerCase();
+                return !lowerLine.includes('分數') &&
+                    !lowerLine.includes('總評') &&
+                    !lowerLine.includes('評分') &&
+                    !lowerLine.includes('score') &&
+                    !lowerLine.includes('/10');
+            });
+
+            // Take only first 2 lines and limit to 200 characters
+            let previewText = filteredLines.slice(0, 2).join('\n');
+            if (previewText.length > 200) {
+                previewText = previewText.substring(0, 200) + '...';
+            }
+            preview = previewText;
+        } catch (e) {
+            // If parsing fails, extract from raw text
+            const allLines = responseText.split('\n').filter(line => line.trim() !== '');
+            const filteredLines = allLines.filter(line => {
+                const lowerLine = line.toLowerCase();
+                return !lowerLine.includes('分數') &&
+                    !lowerLine.includes('總評') &&
+                    !lowerLine.includes('評分') &&
+                    !lowerLine.includes('score') &&
+                    !lowerLine.includes('/10');
+            });
+            // Take only first 2 lines and limit to 200 characters
+            let previewText = filteredLines.slice(0, 2).join('\n');
+            if (previewText.length > 200) {
+                previewText = previewText.substring(0, 200) + '...';
+            }
+            preview = previewText;
+        }
+
         pendingResults.set(orderId, {
             result: responseText,
             userId: req.body.userId,
             timestamp: new Date()
         });
 
-        console.log(`Analysis complete. Order ID: ${orderId}`);
-
-        // Extract preview from analysis result (first few lines)
-        let preview = '';
-        try {
-            const analysisData = JSON.parse(responseText);
-            if (Array.isArray(analysisData) && analysisData.length > 0) {
-                const overallReview = analysisData[0].overallReview || analysisData[0]['Overall Review'] || '';
-                // Get first 3 lines or 200 characters as preview
-                const lines = overallReview.split('\n').filter(line => line.trim() !== '');
-                preview = lines.slice(0, 3).join('\n');
-                if (preview.length > 200) {
-                    preview = preview.substring(0, 200) + '...';
-                }
-            }
-        } catch (e) {
-            console.log('Could not parse preview:', e);
-            preview = responseText.substring(0, 200) + '...';
-        }
-
-        // Return order ID with preview
         res.json({
             success: true,
             orderId: orderId,
             preview: preview,
             message: 'Analysis complete. Please proceed to payment.'
         });
-
     } catch (error) {
         console.error('Proxy error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Create Payment Order
 app.post('/api/create-order', async (req, res) => {
     try {
-        const { orderId, discountCode } = req.body;
-
-        if (!pendingResults.has(orderId)) {
-            return res.status(404).json({ error: 'Order not found' });
-        }
+        const { orderId } = req.body;
+        if (!pendingResults.has(orderId)) return res.status(404).json({ error: 'Order not found' });
 
         const orderData = pendingResults.get(orderId);
-        const timestamp = Date.now();
+        const TimeStamp = Math.round(new Date().getTime() / 1000);
 
-        // Discount code validation
-        const VALID_DISCOUNT_CODES = {
-            'JOYFU05': {
-                rate: 0.85, // 85折
-                description: '85折優惠'
-            }
-        };
-
-        let finalAmount = 100; // Default price
-        let discountApplied = false;
-
-        if (discountCode && VALID_DISCOUNT_CODES[discountCode.toUpperCase()]) {
-            const discount = VALID_DISCOUNT_CODES[discountCode.toUpperCase()];
-            finalAmount = Math.round(100 * discount.rate); // 100 * 0.85 = 85
-            discountApplied = true;
-            console.log(`Discount code ${discountCode} applied. Final amount: NT$${finalAmount}`);
+        // Validate email format - Newebpay requires valid email
+        let email = orderData.userId || 'test@example.com';
+        // Simple email validation - check if contains @ and .
+        if (!email.includes('@') || !email.includes('.')) {
+            console.log(`Invalid email format: ${email}, using default`);
+            email = 'test@example.com';
         }
 
-        // Prepare Newebpay order data
-        const newebpayOrder = {
-            MerchantID: NEWEBPAY_CONFIG.merchantID,
-            RespondType: 'JSON',
-            TimeStamp: timestamp,
-            Version: NEWEBPAY_CONFIG.version,
+        const order = {
+            TimeStamp,
             MerchantOrderNo: orderId,
-            Amt: finalAmount, // Use discounted amount
-            ItemDesc: discountApplied ? `履歷透視鏡分析服務 (折扣碼: ${discountCode})` : '履歷透視鏡分析服務',
-            ReturnURL: NEWEBPAY_CONFIG.returnURL,
-            NotifyURL: NEWEBPAY_CONFIG.notifyURL,
-            Email: orderData.userId || 'test@example.com',
-            LoginType: 0
+            Amt: 100,
+            ItemDesc: '履歷透視鏡分析服務',
+            Email: email
         };
 
-        const tradeInfo = createTradeInfo(newebpayOrder);
-        const tradeSha = createTradeSha(tradeInfo);
+        const tradeInfoString = genDataChain(order);
+        console.log('=== Creating Payment Order ===');
+        console.log('Order ID:', orderId);
+        console.log('TradeInfo String:', tradeInfoString);
+        console.log('==============================');
 
-        console.log(`Payment order created: ${orderId}, Amount: NT$${finalAmount}`);
+        const aesEncrypt = createSesEncrypt(order);
+        const shaEncrypt = createShaEncrypt(aesEncrypt);
 
         res.json({
             success: true,
             paymentData: {
-                MerchantID: NEWEBPAY_CONFIG.merchantID,
-                TradeInfo: tradeInfo,
-                TradeSha: tradeSha,
-                Version: NEWEBPAY_CONFIG.version,
-                PaymentURL: NEWEBPAY_CONFIG.paymentURL
+                MerchantID: MerchantID,
+                TradeInfo: aesEncrypt,
+                TradeSha: shaEncrypt,
+                Version: Version,
+                PaymentURL: PayGateWay
             }
         });
-
     } catch (error) {
         console.error('Create order error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Payment Callback from Newebpay
 app.post('/api/payment-callback', (req, res) => {
-    console.log('=== Payment Callback Received ===');
-    console.log('Request body:', JSON.stringify(req.body));
-
     try {
-        const { Status, TradeInfo, TradeSha } = req.body;
+        console.log('Payment callback received:', req.body);
+        const { TradeInfo, TradeSha } = req.body;
 
-        if (!TradeInfo) {
-            console.error('TradeInfo is missing from callback');
-            return res.status(400).send('Bad Request: Missing TradeInfo');
+        const thisShaEncrypt = createShaEncrypt(TradeInfo);
+        if (thisShaEncrypt !== TradeSha) {
+            console.log('付款失敗：TradeSha 不一致');
+            return res.end();
         }
 
-        console.log('TradeInfo length:', TradeInfo.length);
-        console.log('Using HashKey:', NEWEBPAY_CONFIG.hashKey ? 'SET' : 'NOT SET');
-        console.log('Using HashIV:', NEWEBPAY_CONFIG.hashIV ? 'SET' : 'NOT SET');
+        const data = createSesDecrypt(TradeInfo);
+        console.log('Decrypted data:', data);
 
-        // Decrypt TradeInfo
-        let decryptedData;
-        try {
-            decryptedData = aesDecrypt(TradeInfo, NEWEBPAY_CONFIG.hashKey, NEWEBPAY_CONFIG.hashIV);
-            console.log('Decrypted data:', decryptedData);
-        } catch (decryptError) {
-            console.error('Decryption failed:', decryptError);
-            return res.status(500).send('Decryption Error');
+        const orderId = data.Result.MerchantOrderNo;
+        if (data.Status === 'SUCCESS' && pendingResults.has(orderId)) {
+            const orderData = pendingResults.get(orderId);
+            paidResults.set(orderId, orderData);
+            pendingResults.delete(orderId);
+            console.log(`Payment successful for order: ${orderId}`);
         }
 
-        let paymentResult;
-        try {
-            paymentResult = JSON.parse(decryptedData);
-            console.log('Parsed payment result:', JSON.stringify(paymentResult));
-        } catch (parseError) {
-            console.error('JSON parse failed:', parseError);
-            console.error('Raw decrypted data:', decryptedData);
-            return res.status(500).send('JSON Parse Error');
-        }
-
-        const orderId = paymentResult.Result?.MerchantOrderNo;
-        console.log('Order ID from payment:', orderId);
-
-        // Check if payment is successful
-        if (paymentResult.Status === 'SUCCESS') {
-            // Move result from pending to paid
-            if (pendingResults.has(orderId)) {
-                const orderData = pendingResults.get(orderId);
-                paidResults.set(orderId, orderData);
-                pendingResults.delete(orderId);
-                console.log(`Payment successful for order: ${orderId}`);
-            } else {
-                console.log(`Order ${orderId} not found in pending results`);
-            }
-        } else {
-            console.log(`Payment status not SUCCESS: ${paymentResult.Status}`);
-        }
-
-        console.log('=== Payment Callback Complete ===');
         res.send('OK');
-
     } catch (error) {
         console.error('Payment callback error:', error);
-        console.error('Error stack:', error.stack);
-        res.status(500).send('ERROR: ' + error.message);
+        res.status(500).send('ERROR');
     }
 });
 
-// Payment Return URL Handler (for user redirection)
 app.post('/api/payment-return', (req, res) => {
     try {
         console.log('Payment return received:', req.body);
+        const { TradeInfo } = req.body;
 
-        const { Status, TradeInfo, TradeSha } = req.body;
+        const data = createSesDecrypt(TradeInfo);
+        console.log('Decrypted return data:', data);
 
-        // Decrypt TradeInfo to get order details
-        const decryptedData = aesDecrypt(TradeInfo, NEWEBPAY_CONFIG.hashKey, NEWEBPAY_CONFIG.hashIV);
-        const paymentResult = JSON.parse(decryptedData);
-
-        console.log('Payment return result:', paymentResult);
-
-        const orderId = paymentResult.Result.MerchantOrderNo;
-
-        // Check if payment is successful and move to paid status
-        if (paymentResult.Status === 'SUCCESS') {
-            if (pendingResults.has(orderId)) {
-                const orderData = pendingResults.get(orderId);
-                paidResults.set(orderId, orderData);
-                pendingResults.delete(orderId);
-                console.log(`Payment successful for order: ${orderId}`);
-            }
+        const orderId = data.Result.MerchantOrderNo;
+        if (data.Status === 'SUCCESS' && pendingResults.has(orderId)) {
+            const orderData = pendingResults.get(orderId);
+            paidResults.set(orderId, orderData);
+            pendingResults.delete(orderId);
         }
 
-        // Get frontend URL from environment variable
-        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-
-        // Redirect to frontend with orderId
+        const redirectUrl = `${FRONTEND_URL}/?orderId=${orderId}`;
         res.send(`
             <!DOCTYPE html>
             <html>
-            <head>
-                <title>Payment Processing</title>
-                <meta http-equiv="refresh" content="0;url=${frontendURL}/?orderId=${orderId}">
-            </head>
-            <body>
-                <p>Processing payment... Redirecting...</p>
-                <script>
-                    window.location.href = '${frontendURL}/?orderId=${orderId}';
-                </script>
-            </body>
+            <head><meta http-equiv="refresh" content="0;url=${redirectUrl}"></head>
+            <body><script>window.location.href = '${redirectUrl}';</script></body>
             </html>
         `);
-
     } catch (error) {
         console.error('Payment return error:', error);
-        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-        res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Payment Error</title>
-            </head>
-            <body>
-                <p>Payment processing error. <a href="${frontendURL}">Return to homepage</a></p>
-            </body>
-            </html>
-        `);
+        res.send('Payment processing error');
     }
 });
 
-// Get Analysis Result (only if paid)
 app.get('/api/get-result/:orderId', (req, res) => {
     const { orderId } = req.params;
-
     if (paidResults.has(orderId)) {
-        const orderData = paidResults.get(orderId);
-        res.send(orderData.result);
+        res.send(paidResults.get(orderId).result);
     } else if (pendingResults.has(orderId)) {
         res.status(402).json({ error: 'Payment required' });
     } else {
@@ -356,24 +282,5 @@ app.get('/api/get-result/:orderId', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log('========================================');
-    console.log('🚀 Server starting...');
-    console.log(`📍 Port: ${port}`);
-    console.log(`🕐 Time: ${new Date().toISOString()}`);
-    console.log('');
-    console.log('📋 Environment Variables:');
-    console.log(`   MerchantID: ${process.env.MerchantID ? 'SET (' + process.env.MerchantID.substring(0, 5) + '...)' : 'NOT SET'}`);
-    console.log(`   HASHKEY: ${process.env.HASHKEY ? 'SET' : 'NOT SET'}`);
-    console.log(`   HASHIV: ${process.env.HASHIV ? 'SET' : 'NOT SET'}`);
-    console.log(`   PayGateWay: ${process.env.PayGateWay || 'NOT SET (using default)'}`);
-    console.log(`   BACKEND_URL: ${process.env.BACKEND_URL || 'NOT SET'}`);
-    console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || 'NOT SET'}`);
-    console.log('');
-    console.log('🔗 Endpoints:');
-    console.log(`   POST /api/analyze`);
-    console.log(`   POST /api/create-order`);
-    console.log(`   POST /api/payment-callback`);
-    console.log(`   POST /api/payment-return`);
-    console.log('========================================');
-    console.log(`✅ Server is ready at http://localhost:${port}`);
+    console.log(`Backend Server running at http://localhost:${port}`);
 });
