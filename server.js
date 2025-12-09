@@ -216,18 +216,43 @@ app.post('/api/create-order', async (req, res) => {
 
 // Payment Callback from Newebpay
 app.post('/api/payment-callback', (req, res) => {
-    try {
-        console.log('Payment callback received:', req.body);
+    console.log('=== Payment Callback Received ===');
+    console.log('Request body:', JSON.stringify(req.body));
 
+    try {
         const { Status, TradeInfo, TradeSha } = req.body;
 
+        if (!TradeInfo) {
+            console.error('TradeInfo is missing from callback');
+            return res.status(400).send('Bad Request: Missing TradeInfo');
+        }
+
+        console.log('TradeInfo length:', TradeInfo.length);
+        console.log('Using HashKey:', NEWEBPAY_CONFIG.hashKey ? 'SET' : 'NOT SET');
+        console.log('Using HashIV:', NEWEBPAY_CONFIG.hashIV ? 'SET' : 'NOT SET');
+
         // Decrypt TradeInfo
-        const decryptedData = aesDecrypt(TradeInfo, NEWEBPAY_CONFIG.hashKey, NEWEBPAY_CONFIG.hashIV);
-        const paymentResult = JSON.parse(decryptedData);
+        let decryptedData;
+        try {
+            decryptedData = aesDecrypt(TradeInfo, NEWEBPAY_CONFIG.hashKey, NEWEBPAY_CONFIG.hashIV);
+            console.log('Decrypted data:', decryptedData);
+        } catch (decryptError) {
+            console.error('Decryption failed:', decryptError);
+            return res.status(500).send('Decryption Error');
+        }
 
-        console.log('Payment result:', paymentResult);
+        let paymentResult;
+        try {
+            paymentResult = JSON.parse(decryptedData);
+            console.log('Parsed payment result:', JSON.stringify(paymentResult));
+        } catch (parseError) {
+            console.error('JSON parse failed:', parseError);
+            console.error('Raw decrypted data:', decryptedData);
+            return res.status(500).send('JSON Parse Error');
+        }
 
-        const orderId = paymentResult.Result.MerchantOrderNo;
+        const orderId = paymentResult.Result?.MerchantOrderNo;
+        console.log('Order ID from payment:', orderId);
 
         // Check if payment is successful
         if (paymentResult.Status === 'SUCCESS') {
@@ -237,14 +262,20 @@ app.post('/api/payment-callback', (req, res) => {
                 paidResults.set(orderId, orderData);
                 pendingResults.delete(orderId);
                 console.log(`Payment successful for order: ${orderId}`);
+            } else {
+                console.log(`Order ${orderId} not found in pending results`);
             }
+        } else {
+            console.log(`Payment status not SUCCESS: ${paymentResult.Status}`);
         }
 
+        console.log('=== Payment Callback Complete ===');
         res.send('OK');
 
     } catch (error) {
         console.error('Payment callback error:', error);
-        res.status(500).send('ERROR');
+        console.error('Error stack:', error.stack);
+        res.status(500).send('ERROR: ' + error.message);
     }
 });
 
