@@ -356,6 +356,24 @@ app.get('/api/get-result/:orderId', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-    console.log(`Open your browser and go to http://localhost:${port}`);
+    console.log('========================================');
+    console.log('🚀 Server starting...');
+    console.log(`📍 Port: ${port}`);
+    console.log(`🕐 Time: ${new Date().toISOString()}`);
+    console.log('');
+    console.log('📋 Environment Variables:');
+    console.log(`   MerchantID: ${process.env.MerchantID ? 'SET (' + process.env.MerchantID.substring(0, 5) + '...)' : 'NOT SET'}`);
+    console.log(`   HASHKEY: ${process.env.HASHKEY ? 'SET' : 'NOT SET'}`);
+    console.log(`   HASHIV: ${process.env.HASHIV ? 'SET' : 'NOT SET'}`);
+    console.log(`   PayGateWay: ${process.env.PayGateWay || 'NOT SET (using default)'}`);
+    console.log(`   BACKEND_URL: ${process.env.BACKEND_URL || 'NOT SET'}`);
+    console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || 'NOT SET'}`);
+    console.log('');
+    console.log('🔗 Endpoints:');
+    console.log(`   POST /api/analyze`);
+    console.log(`   POST /api/create-order`);
+    console.log(`   POST /api/payment-callback`);
+    console.log(`   POST /api/payment-return`);
+    console.log('========================================');
+    console.log(`✅ Server is ready at http://localhost:${port}`);
 });
