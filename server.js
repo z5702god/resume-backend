@@ -165,7 +165,7 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
 
 app.post('/api/create-order', async (req, res) => {
     try {
-        const { orderId } = req.body;
+        const { orderId, discountCode } = req.body;
         if (!pendingResults.has(orderId)) return res.status(404).json({ error: 'Order not found' });
 
         const orderData = pendingResults.get(orderId);
@@ -179,18 +179,41 @@ app.post('/api/create-order', async (req, res) => {
             email = 'test@example.com';
         }
 
+        // Valid discount codes configuration
+        const VALID_DISCOUNT_CODES = {
+            'JOYFU05': {
+                rate: 0.85,  // 85折
+                description: '85折優惠'
+            }
+        };
+
+        // Calculate final amount based on discount code
+        const originalAmount = 100;
+        let finalAmount = originalAmount;
+        let itemDesc = '履歷透視鏡分析服務';
+
+        if (discountCode && VALID_DISCOUNT_CODES[discountCode.toUpperCase()]) {
+            const discount = VALID_DISCOUNT_CODES[discountCode.toUpperCase()];
+            finalAmount = Math.round(originalAmount * discount.rate);
+            itemDesc = `履歷透視鏡分析服務 (折扣碼: ${discountCode.toUpperCase()})`;
+            console.log(`✅ Discount code ${discountCode.toUpperCase()} applied. Final amount: NT$${finalAmount}`);
+        } else if (discountCode) {
+            console.log(`❌ Invalid discount code: ${discountCode}`);
+        }
+
         const order = {
             TimeStamp,
             MerchantOrderNo: orderId,
-            Amt: 100,
-            ItemDesc: '履歷透視鏡分析服務',
+            Amt: finalAmount,
+            ItemDesc: itemDesc,
             Email: email
         };
 
         const tradeInfoString = genDataChain(order);
         console.log('=== Creating Payment Order ===');
         console.log('Order ID:', orderId);
-        console.log('TradeInfo String:', tradeInfoString);
+        console.log('Discount Code:', discountCode || 'None');
+        console.log('Amount:', finalAmount);
         console.log('==============================');
 
         const aesEncrypt = createSesEncrypt(order);
